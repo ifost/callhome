@@ -1,0 +1,44 @@
+# Y'know, this could almost become an expect script now. There are only
+# two difficult things -- picking the names for NEWUSER, DOMAIN_FILE and
+# DOMAINNAME; and the vi commands (named.conf, named.boot, update-dns.pl)
+
+# On lenyap and forest
+NEWUSER=southbnk
+DOMAIN_FILE=southbank.db
+DOMAINNAME=southbank.ecsdwn.com.au
+NEWHOSTNAME=southbank.southbank.ecsdwn.com.au
+
+sudo useradd -m $NEWUSER
+sudo passwd $NEWUSER
+sudo touch /var/named/namedb/$DOMAIN_FILE
+sudo chown $NEWUSER /var/named/namedb/$DOMAIN_FILE
+# on OpenBSD3.3 and later...
+    sudo ln /var/named/namedb/$DOMAIN_FILE /var/named/master/$DOMAIN_FILE
+# Now add $DOMAINNAME into /var/named/etc/named.conf or /var/named/named.boot
+sudo mkdir ~$NEWUSER/.ssh
+sudo chown $NEWUSER ~$NEWUSER/.ssh
+sudo sh -c "echo $NEWUSER ALL= NOPASSWD: /usr/sbin/named.reload >> /etc/sudoers"
+# On lenyap only
+cd /var/www/cgi-bin
+sudo sh -c "echo host $NEWHOSTNAME. >> /var/www/cgi-bin/malcolm"
+
+
+
+
+# On the computer with the dynamic address (as root)...
+CVSROOT=gregb@lenyap.ifost.org.au:/home/cvs
+CVS_RSH=ssh
+export CVSROOT CVS_RSH
+cd /usr/local
+cvs get Callhome
+chmod +x Callhome/update-dns.pl
+vi Callhome/update-dns.pl  ## fix up username to be $USERNAME, and other variables at the top
+cd
+ssh-keygen -t dsa -P ""
+scp .ssh/id_dsa.pub $NEWUSER@forest.ifost.org.au:.ssh/authorized_keys
+scp .ssh/id_dsa.pub $NEWUSER@lenyap.ifost.org.au:.ssh/authorized_keys
+# Test it out...
+ssh $NEWUSER@forest.ifost.org.au hostname
+ssh $NEWUSER@lenyap.ifost.org.au hostname
+perl /usr/local/Callhome/update-dns.pl
+echo '0,5,10,15,20,25,30,35,40,45,50,55 * * * * root /usr/local/Callhome/update-dns.pl' >> /etc/crontab
